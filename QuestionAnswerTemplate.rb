@@ -32,129 +32,94 @@ class QuestionAnswerTemplate
     #against the needs of the question later
     matches = [] # will match question tags with corresponding fact tags
 
-    tagCounter = {}
-    fact.tags.each do |k,v|
-      tagCounter[k] ||= {}
-      v.each do |hash|
-        tagCounter[k][hash[:subclass]] = (tagCounter[k].keys.include?(hash[:subclass]) ? tagCounter[k][hash[:subclass]] + 1 : 1); #nil is a valid key
+    workingTC = {}
+    fact.tags.each do |tag,info|
+      workingTC[tag] ||= {}
+      workingTC[tag][:all] ||= []
+      workingTC[tag][:numno] ||= 0
+      info.each do |hash|
+        workingTC[tag][hash[:subclass]] ||= []
+        workingTC[tag][hash[:subclass] << hash[:index]
+        workingTC[tag][:all] << hash[:index]
       end
     end
-    workingTC = tagCounter.dup
-    
-    minCounter = []
-    (0...@qconds.length).each do |i|
-      minCounter[i] = 0
+
+    possibleMacthes = Array.new(@qconds.length) { Array.new(fact.tags.length) {0} }
+    matches = []
+    @qconds.each.each_with_index do |hash,index|
+      if hash[:subtag]
+        possibleMatches[index].each_index { |i| possibleMathces[index][i] = 1 if workingTC[hash[:tag]][hash[:subtag]].include?(i) }
+      else 
+        possibleMatches[index].each_index { |i| possibleMathces[index][i] = 1 if workingTC[hash[:tag]][:all].include?(i) }
+      end
     end
 
-    currentRow = 0
-    while minCounter[0] < @qconds[0].length #until we have exhausted all options
-      #for the current row i and column minCounter[i], find a match in workingTC
-      #if no match is found, decrement i and reset workingTC by looking at i,minCounter[i-1] and adding that back to workingTC
-      # => also increment minCounter[i] for decremented i
-      # => also reset minCounter[j] to 0 for all j > i
-      nosubtags = {}
-      matches = []
+    multsidx = []
+    mults = []
 
-      #if we pushed back up to a row that has already been fully checked
-      if minCounter[currentRow] >= @qconds[currentRow].length
-        #reset workingTC
-        hash = @qcond[currentRow][minCounter[currentRow]-1]
-        if hash[:subtag]
-          workingTC[hash[:tag]][hash[:subtag]] += 1
-        else
-          nosubtags[hash[:tag]].pop
+    #set all definite matches, or return false is no configuration is possible. Also, initialize multiples matrix
+    possibleMatches.each.each_with_index do |row,index|
+      qcond = @qconds[index]
+      ones = []
+      row.each_index { |i| ones << i if row[i] == 1 }
+      if ones.length == 0 #if no possible matches for this condition
+        return Array.new(@qconds.length) {-1}
+      elsif ones.length == 1 #if exactly one match for this condition
+        if qcond[:subtag]
+          return false if not workingTC[qcond[:tag]] or workingTC[qcond[:tag]][qcond[:subtag]] <= 0 #no matches in fact
+          tag_index_of_fact = workingTC[qcond[:tag]][qcond[:subtag]].first
+          matches[index] = tag_index_of_fact
+          workingTC[qcond[:tag]][qcond[:subtag]] = workingTC[qcond[:tag]][qcond[:subtag]] - [tag_index_of_fact]
+          workingTC[qcond[:tag]][:all] = workingTC[qcond[:tag]][:all] - [tag_index_of_fact]
+        else #if the match does not require a subtag
+          return false if not workingTC[qcond[:tag]] #no matches in fact
+          tag_index_of_fact = workingTC[qcond[:tag]][:all].first
+          matches[index] = tag_index_of_fact
+          #need to find which subtag the workingTC belonged to and reset it.
+          workingTC[qcond[:tag]].each do |key,val|
+            if val.include?(tag_index_of_fact)
+              workingTC[qcond[:tag]][key] = workingTC[qcond[:tag]][key] - [tag_index_of_fact]
+              break
+            end
+          end
+          workingTC[qcond[:tag]][:all] = workingTC[qcond[:tag]][:all] - [tag_index_of_fact]
         end
-        matches.pop #remove match tag
-        #reset counters
-        (currentRow...@qconds.length).each do |cr|
+      else #if multiple matches for this condition
+        multsidx << index
+        mults << ones
+      end
+    end
+
+    #sort out mutliple matches, if possible
+    minCounter = Array.new(mults.length) {0}
+    currentRow = 0
+    taken = []
+    while minCounter[0] < mults[currentRow].length
+      if minCounter[currentRow] >= mults[currentRow].length
+        #need to reset
+        taken.pop
+        (currentRow...mults.length) do |cr|
           minCounter[cr] = 0
         end
         currentRow -= 1
         minCounter[currentRow] += 1
         next
       end
-      
-      #check the next available tag on the current row for a match
-      qcond = @qconds[currentRow][minCounter[currentRow]]
-      if qcond[:subtag]
-        foundMatch = workingTC[qcond[:tag]][qcond[:subtag]]
-        if foundMatch and foundMatch - 1 >= 0
-          workingTC[qcond[:tag]][qcond[:subtag]] -= 1
-          minCounter[currentRow] += 1
-          matches.push({ :tag => qcond[:tag], :subtag => qcond[:subtag], :index => currentRow})
-        else
-          #reset
-          matches.pop
-          (currentRow...@qconds.length).each do |cr|
-            minCounter[cr] = 0
-          end
-          currentRow -= 1 #reset currentRow back one
-          #reset workingTC
-          hash = @qcond[currentRow][minCounter[currentRow]] #reset workingTC for last added tag in previous row
-          if hash[:subtag]
-            workingTC[hash[:tag]][hash[:subtag]] += 1
-          else
-            nosubtags[hash[:tag]].pop
-          end
-          minCounter[currentRow] += 1
-          end
-        next
-      else
-        nosubtags[qcond[:tag]] ||= []
-        nosubtags[qcond[:tag]] << currentRow
-        matches.push(-1)
-      end
 
-      #do a no subtags check if we get to the last row
-      if currentRow == @qconds.length - 1
-        passed = true
-        nosubtags.each do |tag,indices| #try and match all question tags with no specific subtag to any subtag combo
-          if not workingTC.keys.include?(tag) or workingTC[tag].values.inject(0) { |cum,v| cum += v } < indices.length #if the fact does not have the tag at all, or the number of tags is not sufficient given the number of unmatched subtags that belong to that tag, then reset
-            #reset for last row
-            hash = @qcond[currentRow][minCounter[currentRow]]
-            if hash[:subtag]
-              workingTC[hash[:tag]][hash[:subtag]] += 1
-            else
-              nosubtags[hash[:tag]].pop
-            end
-            if minCounter[currentRow] >= @qconds[currentRow].length - 1
-              minCounter[currentRow] = 0
-              currentRow -= 1
-              hash = @qcond[currentRow][minCounter[currentRow]]
-              minCounter[currentRow] += 1
-              if hash[:subtag]
-                workingTC[hash[:tag]][hash[:subtag]] += 1
-              else
-                nosubtags[hash[:tag]].pop
-              end
-            else
-              minCounter[currentRow] += 1
-            end
-            passed = false
-            break
-          else #if the number of nosubtag tags in the fact at least equal the number of remaining tags required by the question 
-            #here we assign matches
-            #must be careful of temporal ordering since matches is an array. Thus, first need to find 'tag index' of the nosubtag tag
-            indices.each do |ind|
-              if matches[ind] != -1
-                puts "Weird Bug Alert! There's a nosubtag match for a tag that has already been matched with a specific tag-subtag pair"
-              else
-                tqc = @qconds[ind][minCounter(ind)]
-                matches[ind] = { :tag => tqc[:tag], :subtag => tqc[:subtag], :index => ind }
-              end
-            end
-          end
-        end
-        #if it passes nosubtags check then return true
-        return true if passed
-      else
+      tag_index_of_fact = mults[minCounter[currentRow]]
+      if taken.include? tag_index_of_fact
+        minCounter[currentRow] += 1
+        next
+      else 
+        matches[multsidx[currentRow]] = tag_index_of_fact 
+        taken.push(tag_index_of_fact)
         currentRow += 1
       end
-    end
-    
-    return false
 
-    ##TODO: Still need to figure out what to do with matches for nosubtag cases! Also, need to change return values to matches instead of true/false
+      return matches if currentRow == mults.length
+    end
+
+    return false
   end
 
   #take in a fact, match fact tags to question tags and output filled in question text

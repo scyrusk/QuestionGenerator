@@ -143,3 +143,6 @@ authenticator = Authenticator.new
 authenticator.kb.getSimilar(authenticator.kb.facts.last,elapsedTime=7*DAY_TO_SECONDS).each do |fact|
   puts fact
 end
+authenticator.qat.each do |qat|
+  puts qat
+end
