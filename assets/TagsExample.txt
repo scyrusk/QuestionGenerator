@@ -1,0 +1,7 @@
+person
+activity
+application
+verb
+time
+adjective
+location
