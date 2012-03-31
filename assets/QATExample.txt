@@ -1,4 +1,5 @@
-What did you do at {time}?=>list@{activity}
-What {application} do you use {adjective}?=>list@{application}
-What {application-type} application do you use the most?=>list@{application-type}
-Where were you at {time}?=>{location}
+What did you do at <time>?=>list@{activity}
+What {applicationType} application do you use the most?=>list@{application}
+Where were you at <time>?=>{location}
+Who did you meet for lunch yesterday?=>list@{person:Friend}
+What application did you use at/on <time>?=>{application}

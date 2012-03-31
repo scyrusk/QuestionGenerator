@@ -92,7 +92,6 @@ class KnowledgeBase
     filtered.select! do |candidate|
       fact.sameStruct(candidate)
     end
-
-    return filtered
+    return filtered - [fact]
   end
 end

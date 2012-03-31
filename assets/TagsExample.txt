@@ -5,3 +5,4 @@ verb
 time
 adjective
 location
+applicationType

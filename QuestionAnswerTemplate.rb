@@ -15,22 +15,32 @@ class QuestionAnswerTemplate
     end
 
     @aconds = []
-    a.scan(/\w+@{\w+}/).map do |acond|
-      type,btag = acond.split('@') #separate type from tag
-      wqc = btag[1...btag.length-1] #eliminate { }s of tag
-      tag,st = wqc.split(':')
-      @aconds << { :type => type, :tag => tag, :subtag => st }
+    if a.include? '@'
+      a.scan(/\w*@?{\w+:?\w+}/).each do |acond|
+        type,btag = acond.split('@') #separate type from tag
+        wqc = btag[1...btag.length-1] #eliminate { }s of tag
+        tag,st = wqc.split(':')
+        @aconds << { :type => type, :tag => tag, :subtag => st }
+      end
+    else
+      a.scan(/{\w+}/).each do |acond|
+        wqc = acond[1...acond.length-1] #eliminate { }s of tag
+        tag,st = wqc.split(':')
+        @aconds << { :type => nil, :tag => tag, :subtag => st}
+      end
     end
 
     @text = text
   end
 
-  #UNTESTED
+  #Seems to work
   def matches(fact) 
+    allconds = (@qconds.dup + @aconds.map { |acond| { :tag => acond[:tag], :subtag => acond[:subtag] } }).flatten
     #construct a hashmap of the structure tag => { :subclass => counter }
     #the hashmap counts the number of each tag/subclass combo in the fact to check
     #against the needs of the question later
-    matches = [] # will match question tags with corresponding fact tags
+    matches = Array.new(allconds.length) { -1 }
+ # will match question tags with corresponding fact tags
 
     workingTC = {}
     fact.tags.each do |tag,info|
@@ -39,18 +49,22 @@ class QuestionAnswerTemplate
       workingTC[tag][:numno] ||= 0
       info.each do |hash|
         workingTC[tag][hash[:subclass]] ||= []
-        workingTC[tag][hash[:subclass] << hash[:index]
+        workingTC[tag][hash[:subclass]] << hash[:index]
         workingTC[tag][:all] << hash[:index]
       end
     end
 
-    possibleMacthes = Array.new(@qconds.length) { Array.new(fact.tags.length) {0} }
-    matches = []
-    @qconds.each.each_with_index do |hash,index|
+
+    allconds.each do |hash|
+      return false if not workingTC[hash[:tag]]
+    end
+
+    possibleMatches = Array.new(allconds.length) { Array.new(fact.tags.length) {-1} }
+    allconds.each.each_with_index do |hash,index|
       if hash[:subtag]
-        possibleMatches[index].each_index { |i| possibleMathces[index][i] = 1 if workingTC[hash[:tag]][hash[:subtag]].include?(i) }
+        possibleMatches[index].each_index { |i| possibleMathces[index][i] = 1 if workingTC[hash[:tag]][hash[:subtag]] and workingTC[hash[:tag]][hash[:subtag]].include?(i) }
       else 
-        possibleMatches[index].each_index { |i| possibleMathces[index][i] = 1 if workingTC[hash[:tag]][:all].include?(i) }
+        possibleMatches[index].each_index { |i| possibleMatches[index][i] = 1 if workingTC[hash[:tag]][:all] and workingTC[hash[:tag]][:all].include?(i) }
       end
     end
 
@@ -59,30 +73,30 @@ class QuestionAnswerTemplate
 
     #set all definite matches, or return false is no configuration is possible. Also, initialize multiples matrix
     possibleMatches.each.each_with_index do |row,index|
-      qcond = @qconds[index]
+      cond = allconds[index]
       ones = []
       row.each_index { |i| ones << i if row[i] == 1 }
       if ones.length == 0 #if no possible matches for this condition
-        return Array.new(@qconds.length) {-1}
+        return false
       elsif ones.length == 1 #if exactly one match for this condition
-        if qcond[:subtag]
-          return false if not workingTC[qcond[:tag]] or workingTC[qcond[:tag]][qcond[:subtag]] <= 0 #no matches in fact
-          tag_index_of_fact = workingTC[qcond[:tag]][qcond[:subtag]].first
+        if cond[:subtag]
+          return false if not workingTC[cond[:tag]] or workingTC[cond[:tag]][cond[:subtag]] <= 0 #no matches in fact
+          tag_index_of_fact = workingTC[cond[:tag]][cond[:subtag]].first
           matches[index] = tag_index_of_fact
-          workingTC[qcond[:tag]][qcond[:subtag]] = workingTC[qcond[:tag]][qcond[:subtag]] - [tag_index_of_fact]
-          workingTC[qcond[:tag]][:all] = workingTC[qcond[:tag]][:all] - [tag_index_of_fact]
+          workingTC[cond[:tag]][cond[:subtag]] = workingTC[cond[:tag]][cond[:subtag]] - [tag_index_of_fact]
+          workingTC[cond[:tag]][:all] = workingTC[cond[:tag]][:all] - [tag_index_of_fact]
         else #if the match does not require a subtag
-          return false if not workingTC[qcond[:tag]] #no matches in fact
-          tag_index_of_fact = workingTC[qcond[:tag]][:all].first
+          return false if not workingTC[cond[:tag]] #no matches in fact
+          tag_index_of_fact = workingTC[cond[:tag]][:all].first
           matches[index] = tag_index_of_fact
           #need to find which subtag the workingTC belonged to and reset it.
-          workingTC[qcond[:tag]].each do |key,val|
+          workingTC[cond[:tag]].each do |key,val|
             if val.include?(tag_index_of_fact)
-              workingTC[qcond[:tag]][key] = workingTC[qcond[:tag]][key] - [tag_index_of_fact]
+              workingTC[cond[:tag]][key] = workingTC[cond[:tag]][key] - [tag_index_of_fact]
               break
             end
           end
-          workingTC[qcond[:tag]][:all] = workingTC[qcond[:tag]][:all] - [tag_index_of_fact]
+          workingTC[cond[:tag]][:all] = workingTC[cond[:tag]][:all] - [tag_index_of_fact]
         end
       else #if multiple matches for this condition
         multsidx << index
@@ -90,15 +104,18 @@ class QuestionAnswerTemplate
       end
     end
 
+    if mults.length == 0 and matches.all? { |match| match >= 0 }
+      return [self,matches]
+    end
     #sort out mutliple matches, if possible
     minCounter = Array.new(mults.length) {0}
     currentRow = 0
     taken = []
-    while minCounter[0] < mults[currentRow].length
+    while minCounter[0] < mults[0].length
       if minCounter[currentRow] >= mults[currentRow].length
         #need to reset
         taken.pop
-        (currentRow...mults.length) do |cr|
+        (currentRow...mults.length).each do |cr|
           minCounter[cr] = 0
         end
         currentRow -= 1
@@ -116,7 +133,8 @@ class QuestionAnswerTemplate
         currentRow += 1
       end
 
-      return matches if currentRow == mults.length
+
+      return [self,matches] if currentRow == mults.length
     end
 
     return false
@@ -127,7 +145,25 @@ class QuestionAnswerTemplate
 
   end
 
+  def generateQuestionAnswerPair(fact,matchesArr)
+    q,a = @text.split('=>')
+    if @qconds.length > 0
+      matchesArr.first(@qconds.length).each do |idx|
+        q.sub!("{#{fact.ordered_tags[idx][:tag]}}",fact.ordered_tags[idx][:subval])
+      end
+    end
+    q.sub!('<time>',"#{fact.timestamp[:month]}/#{fact.timestamp[:day]}/#{fact.timestamp[:year]}")
+
+    if @aconds.length > 0
+      matchesArr.last(matchesArr.length-@qconds.length).each do |idx|
+        a.sub!("{#{fact.ordered_tags[idx][:class]}}",fact.ordered_tags[idx][:subval])
+      end
+    end
+    return [q,a]
+  end
+
   def to_s
-    "#{@text},#{@qconds},#{@aconds}"
+    allconds = (@qconds.dup + @aconds.map { |acond| { :tag => acond[:tag], :subtag => acond[:subtag] } }).flatten
+    "#{@text},#{@qconds},#{@aconds},#{allconds}"
   end
 end

@@ -1,5 +1,7 @@
-01/27/2012,17:40,Friday|<person:User> was at <location:GPS=33.64,71.89>
-01/28/2012,09:30,Saturday|<person:User> was at <location:GPS=33.64,71.89>
-01/29/2012,22:18,Sunday|<person:User> was at <location:GPS=33.64,71.89>
-01/30/2012,07:56,Monday|<person:User> was at <location:GPS=33.64,71.89>
-01/31/2012,04:34,Tuesday|<person:User> used <application:What's App>
+03/27/2012,17:40,Friday|<person:User> was at <location:GPS=33.64,71.89>
+03/28/2012,09:30,Saturday|<person:User> was at <location:GPS=23.64,61.89>
+03/29/2012,22:18,Sunday|<person:User> was at <location:GPS=43.64,81.89>
+03/30/2012,07:56,Monday|<person:User> was at <location:GPS=12.64,63.89>
+03/31/2012,04:34,Tuesday|<person:User> used <application:Chat=What's App>
+04/01/2012,04:34,Tuesday|<person:User> used <application:Game=DrawSomething>
+04/02/2012,04:34,Tuesday|<person:User> used <application:Comm=Skype>

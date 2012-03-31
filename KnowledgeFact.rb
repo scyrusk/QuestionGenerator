@@ -1,8 +1,9 @@
 class KnowledgeFact
-  attr_reader :timestamp,:text,:tags
+  attr_reader :timestamp,:text,:tags,:ordered_tags
   def initialize(ts,text,tags)
     @timestamp = parseTS(ts)
     @text = text
+    @ordered_tags = []
     @tags = parseTags(tags)
     #puts "DEBUG from KnowledgeFact.initialize::: Fact initialized with timestamp #{@timestamp}" if DEBUG
     #puts "DEBUG from KnowledgeFact.initialize::: Fact initialized with tags #{@tags}" if DEBUG
@@ -20,6 +21,7 @@ class KnowledgeFact
     taglist.each.each_with_index do |tag,index|
       root,subcv = tag.split(':')
       subclass,subval = subcv.split('=')
+      @ordered_tags.push({:class => root[1...root.length],:subclass => (subval == nil ? subclass[0...subclass.length-1] : subclass), :subval => (subval == nil ? subval : subval[0...subval.length-1])})
       tags[root[1...root.length]] ||= []
       tags[root[1...root.length]] << {:subclass => (subval == nil ? subclass[0...subclass.length-1] : subclass), :subval => (subval == nil ? subval : subval[0...subval.length-1]), :index => index}
     end
@@ -35,11 +37,11 @@ class KnowledgeFact
         tmp = ofact.tags[k].dup
         success = []
         (0...v.length).each do |i|
-          puts "checking for #{v[i][:subclass]} => #{v[i][:subval] if v[i][:subval]}" if false
+          #puts "checking for #{v[i][:subclass]} => #{v[i][:subval] if v[i][:subval]}" if false
           success.push(false)
           (0...tmp.length).each do |j|
-            if v[i][:subclass] == tmp[j][:subclass] and v[i][:subval] == tmp[j][:subval]
-              puts "match found for #{tmp[j][:subclass]} => #{tmp[j][:subval] if tmp[j][:subval]}" if false
+            if v[i][:subclass] == tmp[j][:subclass]
+              #puts "match found for #{tmp[j][:subclass]} => #{tmp[j][:subval] if tmp[j][:subval]}" if false
               tmp.delete_at(j)
               success[-1] = true #problem here, just gets reset
               break

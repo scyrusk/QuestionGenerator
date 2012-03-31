@@ -89,6 +89,36 @@ class Authenticator
     return arr
   end
 
+  #Asks a question without context awareness. Searches the knowledge base for a fact within timeframe of the present time, and asks a random question that can be asked about that fact. Also, creates a list of possible answers based on similar facts that occurred around that timeframe.
+  def askQuestion(timeframe=1*DAY_TO_SECONDS)
+    facts = @kb.getFacts(timeframe)
+    while facts.length > 0
+      fact = facts.sample
+      similar = @kb.getSimilar(fact,timeframe)
+      matched = []
+      @qat.each do |qat|
+        ismatch = qat.matches(fact)
+        matched.push(ismatch) if ismatch
+      end
+      qat,matchesArr = matched.sample
+      if not qat
+        facts = facts - [fact]
+        next
+      else
+        #write question
+         question,answers = qat.generateQuestionAnswerPair(fact,matchesArr)
+         answers = [answers]
+         similar.each do |simfact|
+           answers << qat.generateQuestionAnswerPair(simfact,matchesArr)[1]
+         end
+         puts "Question:#{question}"
+         puts "Possible Answers:#{answers.map {|a| a.gsub("\n","")}}"
+         return [question,answers]
+      end
+    end
+    return false
+  end
+
   def authenticate
     #make a context-based assesment of the difficulty score
     #n <- based risk assesment, determine the number of questions to ask
@@ -140,9 +170,4 @@ end
 authenticator = Authenticator.new
 #testFiles(authenticator)
 #testFilter(authenticator)
-authenticator.kb.getSimilar(authenticator.kb.facts.last,elapsedTime=7*DAY_TO_SECONDS).each do |fact|
-  puts fact
-end
-authenticator.qat.each do |qat|
-  puts qat
-end
+authenticator.askQuestion
