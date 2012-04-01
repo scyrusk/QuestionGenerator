@@ -2,4 +2,5 @@ What did you do at <time>?=>list@{activity}
 What {applicationType} application do you use the most?=>list@{application}
 Where were you at <time>?=>{location}
 Who did you meet for lunch yesterday?=>list@{person:Friend}
-What application did you use at/on <time>?=>{application}
+What application did you use at/on <time>?=>list,anysubclass@{application}
+What <acond-subclass> application did you use at/on <time>?=>list@{application}

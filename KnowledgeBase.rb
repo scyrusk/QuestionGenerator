@@ -87,10 +87,10 @@ class KnowledgeBase
   end
 
   #Gets all facts within a certain period of time around the given fact with the same structure (e.g. all tags about the user being at a location within 5 minutes)
-  def getSimilar(fact,elapsedTime=30*60)
+  def getSimilar(fact,elapsedTime=30*60,consider_sub=true)
     filtered = getFacts(elapsedTime=elapsedTime,[],"",pivotTime="#{fact.timestamp[:month]}/#{fact.timestamp[:day]}/#{fact.timestamp[:year]},#{fact.timestamp[:hour]}:#{fact.timestamp[:minute]}")
     filtered.select! do |candidate|
-      fact.sameStruct(candidate)
+      fact.sameStruct(candidate,consider_sub)
     end
     return filtered - [fact]
   end

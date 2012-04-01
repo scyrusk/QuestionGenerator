@@ -94,22 +94,24 @@ class Authenticator
     facts = @kb.getFacts(timeframe)
     while facts.length > 0
       fact = facts.sample
-      similar = @kb.getSimilar(fact,timeframe)
       matched = []
       @qat.each do |qat|
         ismatch = qat.matches(fact)
         matched.push(ismatch) if ismatch
       end
       qat,matchesArr = matched.sample
-      if not qat
+      if not qat #matching failed to match QAT and Tag
         facts = facts - [fact]
         next
       else
         #write question
          question,answers = qat.generateQuestionAnswerPair(fact,matchesArr)
          answers = [answers]
-         similar.each do |simfact|
-           answers << qat.generateQuestionAnswerPair(simfact,matchesArr)[1]
+         if qat.aconds.first[:type] and qat.aconds.first[:type].include? 'list'
+           similar = @kb.getSimilar(fact,timeframe,(not qat.aconds.first[:type].include? 'anysubclass'))
+           similar.each do |simfact|
+             answers << qat.generateQuestionAnswerPair(simfact,matchesArr)[1]
+           end
          end
          puts "Question:#{question}"
          puts "Possible Answers:#{answers.map {|a| a.gsub("\n","")}}"

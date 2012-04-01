@@ -1,4 +1,5 @@
 class QuestionAnswerTemplate
+  attr_reader :qconds,:aconds
   #text should be of the form 'Question=>Answer'
   #An example Question: 'What {tag:subtag|tag:subtag} did {tag}?'
   #An example of Answer: 'Type@{tag:subtag}'
@@ -16,17 +17,35 @@ class QuestionAnswerTemplate
 
     @aconds = []
     if a.include? '@'
-      a.scan(/\w*@?{\w+:?\w+}/).each do |acond|
+      a.scan(/[\w,]*@?{\w+:?\w+}/).each do |acond|
         type,btag = acond.split('@') #separate type from tag
+        atype = type.split(',')
         wqc = btag[1...btag.length-1] #eliminate { }s of tag
-        tag,st = wqc.split(':')
-        @aconds << { :type => type, :tag => tag, :subtag => st }
+        wqc.split('|').each do |tagst| #allows for multiple tags in a location joined with |
+          tag,st = wqc.split(':')
+          @aconds << { :type => type, :tag => tag, :subtag => st }
+        end
       end
     else
       a.scan(/{\w+}/).each do |acond|
         wqc = acond[1...acond.length-1] #eliminate { }s of tag
-        tag,st = wqc.split(':')
-        @aconds << { :type => nil, :tag => tag, :subtag => st}
+        wqc.split('|').each do |tagst| #allows for multiple tags in a location joined with |
+          tag,st = wqc.split(':')
+          @aconds << { :type => nil, :tag => tag, :subtag => st}
+        end
+      end
+    end
+
+    #substructs are attributes of a Question-Answer Template that are dynamically replaced by elements of a fact. Examples include <time> and subclass placeholders, such as <acond:*>
+    #The substructs hash map contains links between the cueing text in the QAT and the corresponding attribute in the fact
+    @substructs = {}
+    q.scan(/<[\w-]+>/).each do |tcue|
+      cue = tcue[1...-1] #remove <,>s
+      main,mod = cue.split('-')
+      if not mod
+        @substructs[tcue] = {:attr => main.to_sym}
+      else
+        @substructs[tcue] = {:obj => main, :attr => mod.to_sym}
       end
     end
 
@@ -140,10 +159,6 @@ class QuestionAnswerTemplate
     return false
   end
 
-  #take in a fact, match fact tags to question tags and output filled in question text
-  def generateQuestion(fact)
-
-  end
 
   def generateQuestionAnswerPair(fact,matchesArr)
     q,a = @text.split('=>')
@@ -152,10 +167,21 @@ class QuestionAnswerTemplate
         q.sub!("{#{fact.ordered_tags[idx][:tag]}}",fact.ordered_tags[idx][:subval])
       end
     end
-    q.sub!('<time>',"#{fact.timestamp[:month]}/#{fact.timestamp[:day]}/#{fact.timestamp[:year]}")
+
+    @substructs.each do |cue,sub| 
+      if sub[:obj]
+        if sub[:obj] == 'acond'
+          q.sub!(cue,fact.getAttrFromLink(sub[:attr],matchesArr.last(matchesArr.length-@qconds.length).first))
+        end
+      else
+        q.sub!(cue,fact.getAttrFromLink(sub[:attr]))
+      end
+    end
+    #q.sub!('<time>',"#{fact.timestamp[:month]}/#{fact.timestamp[:day]}/#{fact.timestamp[:year]}")
 
     if @aconds.length > 0
       matchesArr.last(matchesArr.length-@qconds.length).each do |idx|
+        type,a = a.split('@') if a.include? '@'
         a.sub!("{#{fact.ordered_tags[idx][:class]}}",fact.ordered_tags[idx][:subval])
       end
     end
